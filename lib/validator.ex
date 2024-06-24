@@ -16,8 +16,6 @@ defmodule ExEtlFramework.Validator do
         :ok -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
         other ->
-          other
-          |> IO.inspect(label: " #{List.last(String.split(__ENV__.file, "/"))}:#{__ENV__.line} ")
           {:halt, other}
       end
     end)
@@ -51,6 +49,5 @@ defmodule ExEtlFramework.Validator do
   defp is_type?(value, Reference), do: is_reference(value)
   defp is_type?(value, Struct), do: is_struct(value)
   defp is_type?(value, NaiveDateTime), do: is_struct(value, NaiveDateTime)
-  # defp is_type?(value, expected_type) when is_atom(expected_type), do: match?(^expected_type, value)
   defp is_type?(value, expected_type), do: is_struct(value, expected_type)
 end

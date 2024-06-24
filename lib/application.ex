@@ -5,16 +5,8 @@ defmodule ExEtlFramework.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Telemetry.Metrics.ConsoleReporter, metrics: metrics()},
-      ExEtlFramework.LogRotator
+      {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
-
-    # children =
-    #   if Code.ensure_loaded?(Oban) do
-    #     children ++ [{Oban, oban_config()}]
-    #   else
-    #     children
-    #   end
 
     opts = [strategy: :one_for_one, name: ExEtlFramework.Supervisor]
     Supervisor.start_link(children, opts)
@@ -27,8 +19,4 @@ defmodule ExEtlFramework.Application do
       summary("etl.load.duration")
     ]
   end
-
-  # defp oban_config do
-  #   Application.get_env(:etl_framework, Oban, [])
-  # end
 end
