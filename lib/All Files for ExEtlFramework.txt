@@ -1,89 +1,7 @@
 All Files for ExEtlFramework
 # ex_etl_framework.ex
 defmodule ExEtlFramework do
-  alias ExEtlFramework.{Retry, Validator, AdvancedLogger}
-
-  def run(extractor, transformer, loader, opts \\ []) do
-    with {:ok, extracted_data} <- extract_and_validate(extractor, opts),
-         {:ok, transformed_data} <- transform_and_validate(transformer, extracted_data, opts),
-         {:ok, loaded_result} <- load_and_validate(loader, transformed_data, opts) do
-      AdvancedLogger.log(:info, "ETL process completed successfully", %{result: loaded_result})
-      {:ok, loaded_result}
-    else
-      {:error, stage, reason} ->
-        AdvancedLogger.log(:error, "ETL process failed", %{stage: stage, reason: reason})
-        {:error, stage, reason}
-    end
-  end
-
-  defp extract_and_validate(extractor, opts) do
-    retry_opts = Keyword.get(opts, :extract_retry, [])
-    validation_schema = Keyword.get(opts, :extract_validation, %{})
-
-    Retry.retry_with_backoff(
-      fn ->
-        AdvancedLogger.log(:info, "Starting extraction")
-        :telemetry.span([:etl, :extract], %{}, fn ->
-          with {:ok, data} <- extractor.(),
-               {:ok, validated_data} <- Validator.validate(data, validation_schema) do
-            AdvancedLogger.log(:info, "Extraction completed", %{data_size: byte_size(inspect(data))})
-            {{:ok, validated_data}, %{}}
-          else
-            {:error, reason} ->
-              AdvancedLogger.log(:error, "Extraction failed", %{reason: reason})
-              {{:error, {:extract, reason}}, %{}}
-          end
-        end)
-      end,
-      retry_opts
-    )
-  end
-
-  defp transform_and_validate(transformer, data, opts) do
-    retry_opts = Keyword.get(opts, :transform_retry, [])
-    validation_schema = Keyword.get(opts, :transform_validation, %{})
-
-    Retry.retry_with_backoff(
-      fn ->
-        AdvancedLogger.log(:info, "Starting transformation")
-        :telemetry.span([:etl, :transform], %{}, fn ->
-          with {:ok, transformed} <- transformer.(data),
-               {:ok, validated_data} <- Validator.validate(transformed, validation_schema) do
-            AdvancedLogger.log(:info, "Transformation completed")
-            {{:ok, validated_data}, %{}}
-          else
-            {:error, reason} ->
-              AdvancedLogger.log(:error, "Transformation failed", %{reason: reason})
-              {{:error, {:transform, reason}}, %{}}
-          end
-        end)
-      end,
-      retry_opts
-    )
-  end
-
-  defp load_and_validate(loader, data, opts) do
-    retry_opts = Keyword.get(opts, :load_retry, [])
-    validation_schema = Keyword.get(opts, :load_validation, %{})
-
-    Retry.retry_with_backoff(
-      fn ->
-        AdvancedLogger.log(:info, "Starting data load")
-        :telemetry.span([:etl, :load], %{}, fn ->
-          with {:ok, result} <- loader.(data),
-               {:ok, validated_result} <- Validator.validate(result, validation_schema) do
-            AdvancedLogger.log(:info, "Data load completed")
-            {{:ok, validated_result}, %{}}
-          else
-            {:error, reason} ->
-              AdvancedLogger.log(:error, "Data load failed", %{reason: reason})
-              {{:error, {:load, reason}}, %{}}
-          end
-        end)
-      end,
-      retry_opts
-    )
-  end
+ 
 end
 
 # applicatin.ex
@@ -94,16 +12,8 @@ defmodule ExEtlFramework.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Telemetry.Metrics.ConsoleReporter, metrics: metrics()},
-      ExEtlFramework.LogRotator
+      {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
-
-    # children =
-    #   if Code.ensure_loaded?(Oban) do
-    #     children ++ [{Oban, oban_config()}]
-    #   else
-    #     children
-    #   end
 
     opts = [strategy: :one_for_one, name: ExEtlFramework.Supervisor]
     Supervisor.start_link(children, opts)
@@ -115,100 +25,6 @@ defmodule ExEtlFramework.Application do
       summary("etl.transform.duration"),
       summary("etl.load.duration")
     ]
-  end
-
-  # defp oban_config do
-  #   Application.get_env(:etl_framework, Oban, [])
-  # end
-end
-
-# advanced_logger.ex
-defmodule ExEtlFramework.AdvancedLogger do
-  require Logger
-
-  @log_levels [:debug, :info, :warn, :error]
-
-  def log(level, message, metadata \\ %{}) when level in @log_levels do
-    timestamp = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-    formatted_message = format_message(level, timestamp, message, metadata)
-
-    Logger.log(level, formatted_message)
-    write_to_file(level, formatted_message)
-  end
-
-  defp format_message(level, timestamp, message, metadata) do
-    metadata_string = format_metadata(metadata)
-    "[#{level}] [#{timestamp}] #{message} #{metadata_string}"
-  end
-
-  defp format_metadata(metadata) when map_size(metadata) == 0, do: ""
-  defp format_metadata(metadata) do
-    metadata
-    |> Enum.map(fn {k, v} -> "#{k}=#{inspect(v)}" end)
-    |> Enum.join(" ")
-    |> (fn s -> "| #{s}" end).()
-  end
-
-  defp write_to_file(level, message) do
-    path = Path.join(log_directory(), "#{level}.log")
-    File.write!(path, message <> "\n", [:append])
-  end
-
-  defp log_directory do
-    directory = Application.get_env(:etl_framework, :log_directory, "log")
-    File.mkdir_p!(directory)
-    directory
-  end
-end
-
-# log_rotator.ex
-defmodule ExEtlFramework.LogRotator do
-  use GenServer
-  require Logger
-
-  @rotate_interval :timer.hours(24)  # Rotate logs daily
-  @max_log_size 10 * 1024 * 1024  # 10 MB
-
-  def start_link(_) do
-    GenServer.start_link(__MODULE__, %{})
-  end
-
-  @impl true
-  def init(state) do
-    schedule_rotation()
-    {:ok, state}
-  end
-
-  @impl true
-  def handle_info(:rotate, state) do
-    rotate_logs()
-    schedule_rotation()
-    {:noreply, state}
-  end
-
-  defp schedule_rotation do
-    Process.send_after(self(), :rotate, @rotate_interval)
-  end
-
-  defp rotate_logs do
-    [:debug, :info, :warn, :error]
-    |> Enum.each(&rotate_log/1)
-  end
-
-  defp rotate_log(level) do
-    path = Path.join(log_directory(), "#{level}.log")
-    case File.stat(path) do
-      {:ok, %{size: size}} when size > @max_log_size ->
-        archive_path = "#{path}.#{DateTime.utc_now() |> DateTime.to_date()}"
-        File.rename(path, archive_path)
-        Logger.info("Rotated #{level} log to #{archive_path}")
-      _ ->
-        :ok
-    end
-  end
-
-  defp log_directory do
-    Application.get_env(:etl_framework, :log_directory, "log")
   end
 end
 
@@ -267,8 +83,6 @@ defmodule ExEtlFramework.Validator do
         :ok -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
         other ->
-          other
-          |> IO.inspect(label: " #{List.last(String.split(__ENV__.file, "/"))}:#{__ENV__.line} ")
           {:halt, other}
       end
     end)
@@ -302,9 +116,9 @@ defmodule ExEtlFramework.Validator do
   defp is_type?(value, Reference), do: is_reference(value)
   defp is_type?(value, Struct), do: is_struct(value)
   defp is_type?(value, NaiveDateTime), do: is_struct(value, NaiveDateTime)
-  # defp is_type?(value, expected_type) when is_atom(expected_type), do: match?(^expected_type, value)
   defp is_type?(value, expected_type), do: is_struct(value, expected_type)
 end
+
 
 # pipeline.ex
 defmodule ExEtlFramework.Pipeline do
@@ -315,7 +129,6 @@ defmodule ExEtlFramework.Pipeline do
       import ExEtlFramework.Pipeline
       @before_compile ExEtlFramework.Pipeline
       Module.register_attribute(__MODULE__, :steps, accumulate: true)
-      @use_oban unquote(Keyword.get(opts, :use_oban, false))
 
       def run(attributes, opts \\ []) do
         steps = __MODULE__.steps() |> Enum.reverse()
@@ -324,22 +137,27 @@ defmodule ExEtlFramework.Pipeline do
         Logger.debug("Starting pipeline run with attributes: #{inspect(attributes)}")
         Logger.debug("Steps to execute: #{inspect(steps)}")
 
-        Enum.reduce_while(steps, {:ok, attributes, []}, fn step, {:ok, acc, errors} ->
+        Enum.reduce_while(steps, {:ok, attributes, [], %{}}, fn step, {:ok, acc, errors, metrics} ->
           Logger.debug("Attempting to execute step: #{step}")
           retry_opts = Keyword.get(opts, :"#{step}_retry", [])
 
-          result = try do
-            ExEtlFramework.Retry.retry_with_backoff(
-              fn ->
-                Logger.debug("Applying function for step: #{step}")
-                apply(__MODULE__, step, [acc])
-              end,
-              retry_opts
-            )
-          rescue
-            e ->
-              {:error, step, "Unexpected error: #{inspect(e)}"}
-          end
+          {execution_time, result} = :timer.tc(fn ->
+            try do
+              ExEtlFramework.Retry.retry_with_backoff(
+                fn ->
+                  Logger.debug("Applying function for step: #{step}")
+                  apply(__MODULE__, step, [acc])
+                end,
+                retry_opts
+              )
+            rescue
+              e ->
+                {:error, step, "Unexpected error: #{inspect(e)}"}
+            end
+          end)
+
+          step_metrics = Map.put(metrics, step, execution_time / 1_000_000)
+          Logger.info("Step #{step} completed in #{execution_time / 1_000_000} seconds")
 
           Logger.debug("Step #{step} result: #{inspect(result)}")
 
@@ -347,32 +165,39 @@ defmodule ExEtlFramework.Pipeline do
             {:ok, step_result} ->
               if function_exported?(__MODULE__, :"validate_#{step}", 1) do
                 Logger.debug("Validating step: #{step}")
-                case apply(__MODULE__, :"validate_#{step}", [step_result]) do
+                {validation_time, validation_result} = :timer.tc(fn ->
+                  apply(__MODULE__, :"validate_#{step}", [step_result])
+                end)
+
+                validation_metrics = Map.put(step_metrics, :"#{step}_validation", validation_time / 1_000_000)
+                Logger.info("Validation for step #{step} completed in #{validation_time / 1_000_000} seconds")
+
+                case validation_result do
                   {:ok, validated} ->
                     Logger.debug("Validation successful for step: #{step}")
-                    {:cont, {:ok, validated, errors}}
+                    {:cont, {:ok, validated, errors, validation_metrics}}
                   {:error, invalid_records, valid_data} ->
-                    handle_errors(error_strategy, step, invalid_records, valid_data, errors)
+                    handle_errors(error_strategy, step, invalid_records, valid_data, errors, validation_metrics)
                 end
               else
-                {:cont, {:ok, step_result, errors}}
+                {:cont, {:ok, step_result, errors, step_metrics}}
               end
             {:error, reason} ->
               Logger.error("Step #{step} failed, reason: #{inspect(reason)}")
-              handle_errors(error_strategy, step, reason, %{}, errors)
+              handle_errors(error_strategy, step, reason, %{}, errors, step_metrics)
           end
         end)
       end
 
-      defp handle_errors(:fail_fast, step, reason, _, errors) do
+      defp handle_errors(:fail_fast, step, reason, _, errors, metrics) do
         Logger.error("Pipeline failed at step: #{step}, reason: #{inspect(reason)}, errors: #{inspect(errors)}")
-        {:halt, {:error, step, reason, errors}}
+        {:halt, {:error, step, reason, errors, metrics}}
       end
 
-      defp handle_errors(:collect_errors, step, invalid_records, valid_data, errors) do
+      defp handle_errors(:collect_errors, step, invalid_records, valid_data, errors, metrics) do
         new_errors = Enum.map(invalid_records, fn {record, reason} -> {step, record, reason} end)
         Logger.warning("Continuing pipeline with valid data. Errors: #{inspect(new_errors)}")
-        {:cont, {:ok, valid_data, errors ++ new_errors}}
+        {:cont, {:ok, valid_data, errors ++ new_errors, metrics}}
       end
     end
   end
@@ -397,5 +222,3 @@ defmodule ExEtlFramework.Pipeline do
     end
   end
 end
-
-

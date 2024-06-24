@@ -1,12 +1,11 @@
 defmodule ExEtlFramework.Pipeline do
   require Logger
 
-  defmacro __using__(opts) do
+  defmacro __using__(_opts) do
     quote do
       import ExEtlFramework.Pipeline
       @before_compile ExEtlFramework.Pipeline
       Module.register_attribute(__MODULE__, :steps, accumulate: true)
-      @use_oban unquote(Keyword.get(opts, :use_oban, false))
 
       def run(attributes, opts \\ []) do
         steps = __MODULE__.steps() |> Enum.reverse()
