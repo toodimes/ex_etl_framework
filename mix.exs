@@ -27,11 +27,12 @@ defmodule ExEtlFramework.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:jason, "~> 1.4"},
+      {:stream_data, "~> 1.1", only: :test},
       {:telemetry, "~> 1.2"},
       {:telemetry_metrics, "~> 0.6"},
-      {:telemetry_poller, "~> 1.0"},
-      {:jason, "~> 1.4"},
-      {:stream_data, "~> 1.1", only: :test}
+      {:telemetry_poller, "~> 1.0"}
     ]
   end
 
