@@ -1,13 +1,18 @@
 defmodule ExEtlFramework.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+
   def project do
     [
       app: :ex_etl_framework,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      package: package(),
+      description: description(),
+      docs: docs()
     ]
   end
 
@@ -26,9 +31,35 @@ defmodule ExEtlFramework.MixProject do
       {:telemetry_metrics, "~> 0.6"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.4"},
-      {:ex_machina, "~> 2.7.0", only: :test},
-      {:mock, "~> 0.3.0", only: :test},
       {:stream_data, "~> 1.1", only: :test}
+    ]
+  end
+
+  defp docs do
+    [
+      extras: [
+        LICENSE: [title: "License"],
+        "README.md": [title: "Readme"]
+      ],
+      main: "readme",
+      source_url: "https://github.com/toodimes/ex_etl_framework",
+      source_ref: "v#{@version}",
+      formatters: ["html"]
+    ]
+  end
+
+  defp description do
+    "An extendable, customizable Elixir ETL framework"
+  end
+
+  defp package do
+    [
+      maintainers: ["David Astor"],
+      licenses: ["MIT"],
+      files: ["lib", "mix.exs", "README*", "LICENSE*"],
+      links: %{
+        "GitHub" => "https://github.com/toodimes/ex_etl_framework"
+      }
     ]
   end
 end
