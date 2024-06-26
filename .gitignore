@@ -25,4 +25,4 @@ ex_etl_framework-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
-/lib/*.txt
+/*.txt
