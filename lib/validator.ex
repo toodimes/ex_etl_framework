@@ -1,4 +1,39 @@
 defmodule ExEtlFramework.Validator do
+  @moduledoc """
+  Provides functions for validating data structures.
+
+  This module offers a flexible way to define validation rules and apply them
+  to your data. It's particularly useful for ensuring data integrity at various
+  stages of your ETL pipeline.
+
+  ## Example
+
+      schema = %{
+        name: [&Validator.required/1, &Validator.type(String)],
+        age: [&Validator.type(Integer)]
+      }
+      Validator.validate(%{name: "John", age: 30}, schema)
+  """
+
+  @doc """
+  Validates data against a given schema.
+
+  ## Parameters
+
+  - `data`: The data structure to validate.
+  - `schema`: A map where keys are field names and values are lists of validator functions.
+
+  ## Returns
+
+  Returns either:
+  - `{:ok, data}` if all validations pass.
+  - `{:error, field, reason}` if any validation fails.
+
+  ## Example
+
+      schema = %{name: [&Validator.required/1, &Validator.type(String)]}
+      Validator.validate(%{name: "John"}, schema)
+  """
   def validate(data, schema) do
     Enum.reduce_while(schema, {:ok, data}, fn {field, validators}, {:ok, acc} ->
       case validate_field(data, field, validators) do
@@ -21,9 +56,46 @@ defmodule ExEtlFramework.Validator do
     end)
   end
 
+  @doc """
+  Validates that a value is not nil.
+
+  ## Parameters
+
+  - `value`: The value to check.
+
+  ## Returns
+
+  Returns either:
+  - `:ok` if the value is not nil.
+  - `{:error, "Field is required"}` if the value is nil.
+
+  ## Example
+
+      Validator.required("Some value")  # Returns :ok
+      Validator.required(nil)           # Returns {:error, "Field is required"}
+  """
   def required(value) when is_nil(value), do: {:error, "Field is required"}
   def required(_value), do: :ok
 
+  @doc """
+  Creates a validator function that checks if a value is of a specific type.
+
+  ## Parameters
+
+  - `expected_type`: The type to check against (e.g., String, Integer).
+
+  ## Returns
+
+  Returns a function that takes a value and returns:
+  - `:ok` if the value is of the expected type or nil.
+  - `{:error, reason}` if the value is not of the expected type.
+
+  ## Example
+
+      string_validator = Validator.type(String)
+      string_validator.("Hello")  # Returns :ok
+      string_validator.(123)      # Returns {:error, "Expected type String, got 123"}
+  """
   def type(expected_type) do
     fn value ->
       if is_nil(value) or is_type?(value, expected_type) do

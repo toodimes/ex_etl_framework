@@ -1,4 +1,29 @@
 defmodule ExEtlFramework.Pipeline do
+  @moduledoc """
+  Provides a DSL for defining ETL (Extract, Transform, Load) pipelines.
+
+  This module allows you to define a series of steps that make up your ETL process.
+  It handles the execution of these steps, including error handling and performance
+  measurement.
+
+  ## Example
+
+      defmodule MyPipeline do
+        use ExEtlFramework.Pipeline
+
+        step :extract do
+          {:ok, %{data: [1, 2, 3]}}
+        end
+
+        step :transform do
+          {:ok, %{data: [2, 4, 6]}}
+        end
+
+        step :load do
+          {:ok, %{result: "Data loaded successfully"}}
+        end
+      end
+  """
   require Logger
 
   defmacro __using__(_opts) do
@@ -8,6 +33,28 @@ defmodule ExEtlFramework.Pipeline do
       @before_compile ExEtlFramework.Pipeline
       Module.register_attribute(__MODULE__, :steps, accumulate: true)
 
+      @doc """
+      Executes the defined pipeline.
+
+      This function runs all the steps defined in the pipeline in order. It handles
+      error strategies and collects metrics for each step.
+
+      ## Parameters
+
+      - `attributes`: Initial data to be passed to the first step.
+      - `opts`: Keyword list of options. Supported options:
+        - `:error_strategy` - Either `:fail_fast` or `:collect_errors` (default).
+
+      ## Returns
+
+      Returns a tuple with the result of the pipeline execution:
+      - `{:ok, final_result, metrics}` if all steps succeed.
+      - `{:error, step, reason, errors, metrics}` if any step fails.
+
+      ## Example
+
+          result = MyPipeline.run(%{initial: "data"}, error_strategy: :collect_errors)
+      """
       def run(attributes, opts \\ []) do
         steps = __MODULE__.steps() |> Enum.reverse()
         error_strategy = Keyword.get(opts, :error_strategy, :collect_errors)
@@ -84,6 +131,23 @@ defmodule ExEtlFramework.Pipeline do
     end
   end
 
+  @doc """
+  Defines a step in the ETL pipeline.
+
+  This macro is used to define individual steps in your pipeline. Each step
+  should return either `{:ok, result}` or `{:error, reason}`.
+
+  ## Parameters
+
+  - `name`: Atom that identifies the step.
+  - `do`: The block of code to be executed for this step.
+
+  ## Example
+
+      step :extract do
+        {:ok, %{data: [1, 2, 3]}}
+      end
+  """
   defmacro step(name, do: block) do
     quote do
       @steps unquote(name)
