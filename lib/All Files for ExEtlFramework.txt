@@ -120,11 +120,12 @@ defmodule ExEtlFramework.Validator do
 end
 
 
+
 # pipeline.ex
 defmodule ExEtlFramework.Pipeline do
   require Logger
 
-  defmacro __using__(opts) do
+  defmacro __using__(_opts) do
     quote do
       import ExEtlFramework.Pipeline
       @before_compile ExEtlFramework.Pipeline
@@ -222,3 +223,4 @@ defmodule ExEtlFramework.Pipeline do
     end
   end
 end
+

@@ -14,9 +14,9 @@ defmodule ExEtlFramework.Application do
 
   defp metrics do
     [
-      summary("etl.extract.duration"),
-      summary("etl.transform.duration"),
-      summary("etl.load.duration")
+      summary("pipeline.run.duration"),
+      summary("pipeline.step.duration", tags: [:step]),
+      counter("pipeline.errors.total", tags: [:step])
     ]
   end
 end

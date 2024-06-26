@@ -26,10 +26,9 @@ defmodule ExEtlFramework.MixProject do
       {:telemetry_metrics, "~> 0.6"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.4"},
-      # {:oban, "~> 2.15", optional: true},
       {:ex_machina, "~> 2.7.0", only: :test},
       {:mock, "~> 0.3.0", only: :test},
-      {:logger_file_backend, "~> 0.0.14"}
+      {:stream_data, "~> 1.1", only: :test}
     ]
   end
 end

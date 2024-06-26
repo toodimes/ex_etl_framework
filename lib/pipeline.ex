@@ -4,6 +4,7 @@ defmodule ExEtlFramework.Pipeline do
   defmacro __using__(_opts) do
     quote do
       import ExEtlFramework.Pipeline
+      require Logger
       @before_compile ExEtlFramework.Pipeline
       Module.register_attribute(__MODULE__, :steps, accumulate: true)
 
@@ -72,7 +73,11 @@ defmodule ExEtlFramework.Pipeline do
       end
 
       defp handle_errors(:collect_errors, step, invalid_records, valid_data, errors, metrics) do
-        new_errors = Enum.map(invalid_records, fn {record, reason} -> {step, record, reason} end)
+        new_errors = Enum.map(invalid_records, fn
+          {record, reason} -> {step, record, reason}
+          # A custom validator may not return a structured {record, reason} so we account for lists with simple data types
+          single_record -> {step, single_record, "Invalid"}
+        end)
         Logger.warning("Continuing pipeline with valid data. Errors: #{inspect(new_errors)}")
         {:cont, {:ok, valid_data, errors ++ new_errors, metrics}}
       end

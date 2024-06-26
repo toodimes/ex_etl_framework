@@ -47,7 +47,6 @@ defmodule ExEtlFramework.Validator do
   defp is_type?(value, PID), do: is_pid(value)
   defp is_type?(value, Port), do: is_port(value)
   defp is_type?(value, Reference), do: is_reference(value)
-  defp is_type?(value, Struct), do: is_struct(value)
-  defp is_type?(value, NaiveDateTime), do: is_struct(value, NaiveDateTime)
+  defp is_type?(_value, Any), do: true
   defp is_type?(value, expected_type), do: is_struct(value, expected_type)
 end
