@@ -1,13 +1,14 @@
 # ExEtlFramework
 
-ExEtlFramework is an Elixir-based ETL (Extract, Transform, Load) framework designed to simplify and streamline data processing pipelines. It provides a set of tools for building flexible and measurable ETL processes.
+ExEtlFramework is a powerful and flexible ETL (Extract, Transform, Load) framework built in Elixir. It simplifies the process of creating robust data processing pipelines with built-in support for validation, error handling, and performance monitoring.
 
 ## Features
 
-- **Modular Pipeline Structure**: Define ETL steps using a simple DSL.
-- **Data Validation**: Flexible schema-based data validation.
-- **Error Handling Strategies**: Choose between fail-fast or error collection approaches.
-- **Telemetry Integration**: Measure and report on pipeline performance.
+- **Modular Pipeline Structure**: Easy-to-define ETL steps using a simple DSL
+- **Flexible Data Validation**: Schema-based validation with built-in and custom validators
+- **Error Handling Strategies**: Choose between fail-fast or error collection approaches
+- **Telemetry Integration**: Built-in performance measurement and reporting
+- **Extensible**: Easy to add custom steps and validators
 
 ## Installation
 
@@ -24,6 +25,8 @@ end
 ## Usage
 
 ### Defining a Pipeline
+
+Create a module for your pipeline and use the `ExEtlFramework.Pipeline` macro:
 
 ```elixir
 defmodule MyPipeline do
@@ -46,30 +49,41 @@ defmodule MyPipeline do
 
   # Optional: Define validation for each step
   def validate_extract(data) do
-    # Validation logic
+    schema = %{
+      data: [&ExEtlFramework.Validator.required/1, &ExEtlFramework.Validator.type(List)]
+    }
+    ExEtlFramework.Validator.validate(data, schema)
   end
 end
 ```
 
 ### Running a Pipeline
 
+Execute your pipeline with optional error handling strategy:
+
 ```elixir
 result = MyPipeline.run(%{initial: "data"}, error_strategy: :collect_errors)
 ```
 
-## Components
+## Key Components
 
 ### Pipeline
 
-The core of the framework, allowing you to define and execute ETL steps.
+The core module for defining and executing ETL steps. It provides:
 
-## Validator
+- A DSL for defining pipeline steps
+- Automatic error handling
+- Integration with the validation system
 
-The Validator module provides a flexible and powerful way to validate data within your ETL pipeline. It allows you to define validation schemas and apply them to your data at any step of the process.
+### Validator
 
-### Defining a Schema
+A flexible data validation system:
 
-A schema is a map where keys are field names and values are lists of validation functions. Here's an example:
+- Define validation schemas with built-in and custom validators
+- Easy to use in pipeline steps
+- Supports complex data structures
+
+Example of a validation schema:
 
 ```elixir
 schema = %{
@@ -79,16 +93,19 @@ schema = %{
 }
 ```
 
-### Built-in Validators
+### Telemetry Integration
 
-ExEtlFramework.Validator provides several built-in validation functions:
+Built-in performance monitoring using Telemetry:
 
-- `required/1`: Ensures the field is present and not nil.
-- `type/1`: Checks if the value is of a specific type.
+- Automatically measures duration of pipeline runs and individual steps
+- Tracks errors in pipelines
+- Easy to integrate with your preferred monitoring solution
+
+## Advanced Usage
 
 ### Custom Validators
 
-You can easily define custom validation functions. They should return `:ok` for valid data or `{:error, reason}` for invalid data:
+Create custom validation functions:
 
 ```elixir
 def custom_email_validator(value) do
@@ -100,68 +117,12 @@ def custom_email_validator(value) do
 end
 ```
 
-### Applying Validation
+### Error Handling Strategies
 
-To apply validation in your pipeline, use the `validate/2` function:
+Choose between two error handling strategies:
 
-```elixir
-defmodule MyPipeline do
-  use ExEtlFramework.Pipeline
-  alias ExEtlFramework.Validator
-
-  step :extract do
-    {:ok, %{name: "John Doe", age: 30, email: "john@example.com"}}
-  end
-
-  def validate_extract(data) do
-    schema = %{
-      name: [&Validator.required/1, &Validator.type(String)],
-      age: [&Validator.type(Integer)],
-      email: [&Validator.required/1, &custom_email_validator/1]
-    }
-
-    Validator.validate(data, schema)
-  end
-
-  defp custom_email_validator(value) do
-    if String.contains?(value, "@") do
-      :ok
-    else
-      {:error, "Invalid email format"}
-    end
-  end
-
-  # ... rest of the pipeline
-end
-```
-
-### Handling Validation Errors
-
-The `validate/2` function returns one of the following:
-
-- `{:ok, data}` if all validations pass.
-- `{:error, field, reason}` if a validation fails.
-
-In your pipeline, you can handle these results accordingly:
-
-```elixir
-def validate_extract(data) do
-  schema = %{
-    name: [&Validator.required/1, &Validator.type(String)],
-    age: [&Validator.type(Integer)],
-    email: [&Validator.required/1, &custom_email_validator/1]
-  }
-
-  case Validator.validate(data, schema) do
-    {:ok, validated_data} ->
-      {:ok, validated_data}
-    {:error, field, reason} ->
-      {:error, "Validation failed for #{field}: #{reason}"}
-  end
-end
-```
-
-This validation system allows you to ensure data integrity at each step of your ETL process, catching and handling errors early in the pipeline.
+- `:fail_fast`: Stops the pipeline at the first error
+- `:collect_errors`: Continues processing and collects all errors
 
 ## Contributing
 
